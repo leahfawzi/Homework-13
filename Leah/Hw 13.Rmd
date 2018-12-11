@@ -1,0 +1,79 @@
+---
+title: "HW 13"
+author: "Leah Fawzi"
+date: "12/10/2018"
+output: pdf_document
+---
+
+```{r, quietly=T}
+library(nnet)
+library(caret)
+library(dplyr)
+```
+
+I'm looking at the first 1000 entries in the mnist train data set and changing the sample labels so that each sample is labeled as a 0 if the image is not a 3 and as a 1 if the image is a 3.
+```{r, cache=F}
+mtrain <- read.csv("mnist_train.csv", header=F) %>% as.matrix
+train_classification <- mtrain[,1]
+
+mtrain<- mtrain[,-1]/256
+x <- mtrain[1:1000,]
+y <- factor(train_classification[1:1000], levels=0:10,labels=c(0,0,0,1,0,0,0,0,0,0,0)) %>% factor
+colnames(x)<- 1:784
+```
+
+```{r}
+print(head(train_classification))
+print(head(y))
+```
+
+First, I will fit the data to a neural net with decay of 0 and a range of sizes and I'm using cross validation to find the most optimal size. Because of time constraints, the range of sizes is not as big as I'd have liked.
+```{r,cache=F}
+fitControl <- trainControl(
+  method = "repeatedcv",
+  number = 2,
+  repeats = 2)
+
+tuning_df <- data.frame(size=9:12, decay=0)
+
+t_out <- caret::train(x=x, y=y, method="nnet",
+                      trControl = fitControl,
+                      tuneGrid=tuning_df, maxit=1000, MaxNWts=100000)
+
+print(t_out)
+```
+
+In my script, the optimal size was 11 even though it says 9 above so I used 11 to test what decay is optimal.
+```{r,cache=F}
+tuning_df2 <- data.frame(size=11, decay=c(0,0.5,1,2))
+t_out2 <- caret::train(x=x, y=y, method="nnet",
+                      trControl = fitControl,
+                      tuneGrid=tuning_df2, maxit=1000, MaxNWts=100000)
+
+print(t_out2)
+```
+The optimal decay was 0.5 with size 11.
+
+Now we will check the accuracy of the two neural nets by computing the prediction error against the the test dataset.
+
+```{r}
+mtest <- read.csv("mnist_test.csv",header=F) %>% as.matrix
+x2 <- mtest
+
+train_classification2 <- mtest[,1]
+mtest<- mtest[,-1]/256 #x matrix
+y2 <- factor(train_classification2, levels=0:10,labels=c(0,0,0,1,0,0,0,0,0,0,0)) %>% factor
+colnames(mtest)<- 1:784
+
+true_y <- y2
+pred_y1 <- predict(t_out, newdata = mtest)
+pred_y2 <- predict(t_out2, newdata = mtest)
+
+
+n_samples <- nrow(x2)
+error1 <- sum(true_y != pred_y1)/n_samples
+cat("test prediction error with t_out", error1, "\n")
+
+error2 <- sum(true_y != pred_y2)/n_samples
+cat("test prediction error with t_out2", error1, "\n")
+```
